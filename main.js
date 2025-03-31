@@ -2,187 +2,6 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { threeJsTechniques } from './config.js';
 
-// Scene setup
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xcccccc);
-
-// Camera setup
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.z = 5;
-
-// Renderer setup
-const renderer = new THREE.WebGLRenderer();
-renderer.setSize(window.innerWidth, window.innerHeight);
-document.body.appendChild(renderer.domElement);
-
-// Controls setup
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true; // an animation loop is required when either damping or auto-rotation are enabled
-controls.dampingFactor = 0.05;
-controls.screenSpacePanning = false;
-controls.minDistance = 1;
-controls.maxDistance = 500;
-controls.maxPolarAngle = Math.PI / 2;
-
-// Lighting
-const ambientLight = new THREE.AmbientLight(0x404040); // soft white light
-scene.add(ambientLight);
-const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-directionalLight.position.set(5, 10, 7.5);
-scene.add(directionalLight);
-
-// Ground Plane
-const planeGeometry = new THREE.PlaneGeometry(100, 100);
-const planeMaterial = new THREE.MeshStandardMaterial({ color: 0x999999, side: THREE.DoubleSide });
-const plane = new THREE.Mesh(planeGeometry, planeMaterial);
-plane.rotation.x = -Math.PI / 2;
-plane.position.y = -0.5; // Adjust based on your scene needs
-scene.add(plane);
-
-
-// Animation loop
-function animate() {
-    requestAnimationFrame(animate);
-    controls.update(); // only required if controls.enableDamping = true, or if controls.autoRotate = true
-    renderer.render(scene, camera);
-}
-animate();
-
-// Handle window resize
-window.addEventListener('resize', onWindowResize, false);
-
-function onWindowResize() {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-}
-
-// LLM Interaction
-const promptInput = document.getElementById('promptInput');
-const generateButton = document.getElementById('generateButton');
-
-generateButton.addEventListener('click', async () => {
-    const userPrompt = promptInput.value.trim();
-    if (!userPrompt) return;
-
-    // Disable button during generation
-    generateButton.disabled = true;
-    generateButton.textContent = 'Generating...';
-
-    try {
-        const completion = await websim.chat.completions.create({
-            messages: [
-                {
-                    role: "system",
-                    content: `You are a 3D object generation assistant. Based on the user's prompt, generate a description of a 3D object using Three.js techniques.
-                    Use the provided list of advanced techniques to inform your response.
-                    Respond ONLY with a JSON object following this exact structure, and no other text:
-                    \`\`\`json
-                    {
-                      "description": "A brief text description of the generated object.",
-                      "geometry": {
-                        "type": "BoxGeometry | SphereGeometry | CylinderGeometry | ConeGeometry | TorusGeometry | PlaneGeometry | BufferGeometry | LatheGeometry | ExtrudeGeometry | ShapeGeometry | TubeGeometry | TextGeometry", // Choose the most appropriate base geometry
-                        "parameters": {} // Parameters specific to the chosen geometry type (e.g., { "width": 1, "height": 1, "depth": 1 } for BoxGeometry)
-                      },
-                      "material": {
-                        "type": "MeshStandardMaterial | MeshBasicMaterial | MeshLambertMaterial | MeshPhongMaterial | MeshPhysicalMaterial", // Choose a material type
-                        "parameters": { // Parameters for the material (e.g., { "color": "#ff0000", "roughness": 0.5, "metalness": 0.5 })
-                            "color": "#ffffff" // Default color
-                        }
-                      },
-                      "position": { "x": 0, "y": 0, "z": 0 }, // Initial position
-                      "rotation": { "x": 0, "y": 0, "z": 0 }, // Initial rotation in radians
-                      "scale": { "x": 1, "y": 1, "z": 1 }, // Initial scale
-                      "advanced_techniques_used": ["Description of any advanced techniques applied, e.g., 'CSG subtraction', 'Displacement Mapping', 'PBR Texturing']" // Optional array describing techniques used
-                    }
-                    \`\`\`
-
-                    Available advanced techniques reference:
-                    ${JSON.stringify(threeJsTechniques, null, 2)}
-                    `,
-                },
-                {
-                    role: "user",
-                    content: userPrompt,
-                },
-            ],
-            json: true, // Ensure the response is JSON
-        });
-
-        const objectData = JSON.parse(completion.content);
-        console.log("LLM Response:", objectData);
-        createObjectFromData(objectData);
-
-    } catch (error) {
-        console.error('Error generating object:', error);
-        alert('Failed to generate object. Please check the console for details.');
-    } finally {
-        // Re-enable button
-        generateButton.disabled = false;
-        generateButton.textContent = 'Generate';
-        promptInput.value = ''; // Clear input
-    }
-});
-
-
-function createObjectFromData(data) {
-    try {
-        // Geometry
-        const GeometryClass = THREE[data.geometry.type];
-        if (!GeometryClass) throw new Error(`Invalid geometry type: ${data.geometry.type}`);
-        const geometryArgs = Object.values(data.geometry.parameters || {});
-         // Handle potential issues with parameter order/types if necessary
-         // For BufferGeometry, data might need specific handling (vertices, faces etc.)
-         let geometry;
-         if (data.geometry.type === 'BufferGeometry') {
-             // TODO: Implement specific BufferGeometry creation logic if needed based on LLM output structure
-             console.warn("BufferGeometry creation from LLM data is not fully implemented.");
-             geometry = new THREE.BoxGeometry(1,1,1); // Fallback for now
-         } else if (data.geometry.type === 'TextGeometry') {
-            // TextGeometry requires FontLoader, handle asynchronously or provide default font
-             console.warn("TextGeometry requires a Font. Using fallback BoxGeometry.");
-             geometry = new THREE.BoxGeometry(1,1,1); // Fallback
-         }
-          else {
-             geometry = new GeometryClass(...geometryArgs);
-         }
-
-
-        // Material
-        const MaterialClass = THREE[data.material.type];
-        if (!MaterialClass) throw new Error(`Invalid material type: ${data.material.type}`);
-        const materialParams = { ...data.material.parameters };
-        if (materialParams.color) {
-            materialParams.color = new THREE.Color(materialParams.color);
-        }
-        // TODO: Handle textures if the LLM provides texture URLs/data
-        const material = new MaterialClass(materialParams);
-
-        // Mesh
-        const mesh = new THREE.Mesh(geometry, material);
-
-        // Transformations
-        mesh.position.set(data.position.x, data.position.y, data.position.z);
-        mesh.rotation.set(data.rotation.x, data.rotation.y, data.rotation.z);
-        mesh.scale.set(data.scale.x, data.scale.y, data.scale.z);
-
-        // Add to scene
-        scene.add(mesh);
-        console.log(`Added object: ${data.description || 'Generated Object'}`);
-
-    } catch (error) {
-        console.error("Error creating object from data:", error, data);
-        alert(`Failed to create object: ${error.message}`);
-    }
-}
-
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { threeJsTechniques } from './config.js';
-// Import specific geometries if needed for advanced cases, e.g.:
-// import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
-// import { FontLoader } from 'three/addons/loaders/FontLoader.js';
-
 // --- Core Scene Setup ---
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb); // Sky blue background
@@ -223,11 +42,6 @@ directionalLight.shadow.camera.top = 20;
 directionalLight.shadow.camera.bottom = -20;
 
 scene.add(directionalLight);
-// const lightHelper = new THREE.DirectionalLightHelper(directionalLight, 5); // Optional: Visualize light
-// scene.add(lightHelper);
-// const shadowHelper = new THREE.CameraHelper( directionalLight.shadow.camera ); // Optional: Visualize shadow frustum
-// scene.add( shadowHelper );
-
 
 // --- Ground Plane ---
 const planeGeometry = new THREE.PlaneGeometry(50, 50);
@@ -273,7 +87,6 @@ promptInput.addEventListener('keypress', function(event) {
     }
 });
 
-
 generateButton.addEventListener('click', async () => {
     const userPrompt = promptInput.value.trim();
     if (!userPrompt) {
@@ -286,7 +99,6 @@ generateButton.addEventListener('click', async () => {
     promptInput.disabled = true; // Disable input while loading
 
     // --- LLM Request Structure ---
-    // This structure is crucial for the LLM to understand how to respond.
     const systemPrompt = `
 You are a 3D object generation assistant for Three.js. Your task is to interpret the user's request and translate it into parameters for creating a 3D mesh.
 Use the provided list of advanced Three.js techniques to inform your geometry and material choices where appropriate.
@@ -355,13 +167,11 @@ ${JSON.stringify(threeJsTechniques, null, 2)}
 6.  Generate the JSON output strictly following the schema.
 `;
 
-
     try {
         console.log("Sending request to LLM...");
         const completion = await websim.chat.completions.create({
             messages: [
                 { role: "system", content: systemPrompt },
-                // No user message needed here as it's embedded in the system prompt
             ],
             json: true,
         });
@@ -408,7 +218,6 @@ function clearGeneratedObjects() {
      console.log("Cleared previous objects.");
 }
 
-
 function createObjectFromData(data) {
     try {
         // --- Geometry Creation ---
@@ -454,11 +263,9 @@ function createObjectFromData(data) {
              if (params.index) {
                  geometry.setIndex(params.index);
              }
-        }
-        else {
+        } else {
             // Standard geometries using ordered parameters from Three.js docs
              const geometryArgs = Object.values(params); // Simple approach, might need refinement based on specific geometry constructor signatures
-             // console.log(`Creating ${data.geometry.type} with args:`, geometryArgs); // Debug log
             geometry = new GeometryClass(...geometryArgs);
         }
 
@@ -480,9 +287,6 @@ function createObjectFromData(data) {
             delete materialParams.opacity; // Don't set opacity if not transparent
         }
 
-
-        // TODO: Handle textures if the LLM provides texture URLs/data (needs TextureLoader)
-
         const material = new MaterialClass(materialParams);
 
         // --- Mesh Creation & Setup ---
@@ -501,10 +305,6 @@ function createObjectFromData(data) {
         objectContainer.add(mesh);
         console.log(`Successfully added object: ${data.description || 'Generated Object'}`);
 
-        // Optional: Focus camera on the new object
-        // controls.target.copy(mesh.position);
-        // camera.lookAt(mesh.position);
-
     } catch (error) {
         console.error("Error creating object from data:", error, "\nData received:", data);
         // Display error to user without crashing
@@ -516,4 +316,3 @@ function createObjectFromData(data) {
         alert(`Failed to create object: ${error.message}. Displaying error indicator.`);
     }
 }
-
