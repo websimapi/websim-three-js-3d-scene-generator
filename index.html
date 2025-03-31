@@ -1,0 +1,27 @@
+<html>
+<head>
+    <title>Three.js 3D Scene Generator</title>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+        #controls { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.5); padding: 10px; color: white; }
+        input, button { margin: 5px; }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <input type="text" id="promptInput" placeholder="Enter a prompt to generate an object...">
+        <button id="generateButton">Generate</button>
+    </div>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module" src="main.js"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4c6229722a6346bc8eb5cb0e5eae5d41","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>
